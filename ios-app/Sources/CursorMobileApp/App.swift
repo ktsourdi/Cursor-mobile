@@ -151,7 +151,7 @@ struct PairDeviceView: View {
 
         do {
             // Step 1: Check server is reachable
-            let _ = try await client.getStatus()
+            _ = try await client.getStatus()
 
             // Step 2: Start pairing
             let deviceName = UIDevice.current.name
@@ -490,8 +490,8 @@ struct ThreadDetailView: View {
         wsTask = task
         connectionStatus = "Connected"
 
-        // Listen for messages
-        while true {
+        // Listen for messages until cancelled
+        while !Task.isCancelled {
             do {
                 let wsMessage = try await task.receive()
                 switch wsMessage {

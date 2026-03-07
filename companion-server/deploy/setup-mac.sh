@@ -58,6 +58,9 @@ cp "$SERVER_DIR/package.json" "$INSTALL_DIR/"
 if [ -f "$SERVER_DIR/package-lock.json" ]; then
     cp "$SERVER_DIR/package-lock.json" "$INSTALL_DIR/"
 fi
+# Copy deploy scripts for easy access
+mkdir -p "$INSTALL_DIR/deploy"
+cp "$SERVER_DIR/deploy/"*.sh "$INSTALL_DIR/deploy/" 2>/dev/null || true
 
 # Install dependencies
 echo "Installing dependencies..."
