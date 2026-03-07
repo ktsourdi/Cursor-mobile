@@ -77,19 +77,18 @@ function waitForMessage(ws, timeout = 3000) {
     return Promise.resolve(ws._messageQueue.shift());
   }
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('Timeout waiting for WS message')), timeout);
+    const timer = setTimeout(() => {
+      clearInterval(interval);
+      reject(new Error('Timeout waiting for WS message'));
+    }, timeout);
     const check = () => {
       if (ws._messageQueue && ws._messageQueue.length > 0) {
         clearTimeout(timer);
+        clearInterval(interval);
         resolve(ws._messageQueue.shift());
       }
     };
-    // Poll the queue since messages are already being buffered
     const interval = setInterval(check, 10);
-    const origClear = () => { clearInterval(interval); clearTimeout(timer); };
-    setTimeout(() => { origClear(); reject(new Error('Timeout waiting for WS message')); }, timeout);
-    // Also check immediately
-    check();
   });
 }
 

@@ -27,7 +27,7 @@
   </array>
 
   <key>WorkingDirectory</key>
-  <!-- UPDATE THIS to the actual path where you cloned/installed the server -->
+  <!-- UPDATE THIS to your actual install path, e.g. /path/to/cursor-mobile-companion -->
   <string>/usr/local/lib/cursor-mobile-companion</string>
 
   <key>EnvironmentVariables</key>

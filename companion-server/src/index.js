@@ -11,7 +11,9 @@ const DEFAULT_PORT = 24842;
 
 function createApp(options = {}) {
   const dbPath = options.dbPath || process.env.COMPANION_DB_PATH || path.join(process.cwd(), 'companion.db');
-  const port = options.port != null ? options.port : (process.env.COMPANION_PORT ? parseInt(process.env.COMPANION_PORT, 10) : DEFAULT_PORT);
+  const port = options.port != null
+    ? options.port
+    : (process.env.COMPANION_PORT ? parseInt(process.env.COMPANION_PORT, 10) : DEFAULT_PORT);
   const host = options.host || process.env.COMPANION_HOST || '0.0.0.0';
 
   // Initialize database
