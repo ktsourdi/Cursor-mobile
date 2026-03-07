@@ -1,0 +1,25 @@
+{
+  "name": "cursor-mobile-companion",
+  "version": "1.0.0",
+  "description": "Mac companion server for Cursor Mobile - enables conversation continuity between Cursor desktop and iPhone",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "node --test test/*.test.js",
+    "lint": "echo 'No linter configured'"
+  },
+  "keywords": [
+    "cursor",
+    "mobile",
+    "companion",
+    "sync"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "better-sqlite3": "^12.6.2",
+    "express": "^5.2.1",
+    "uuid": "^13.0.0",
+    "ws": "^8.19.0"
+  }
+}
