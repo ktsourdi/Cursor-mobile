@@ -210,7 +210,7 @@ class CompanionDB {
   }
 
   updateThread(id, fields) {
-    const allowed = ['title', 'updated_at', 'status', 'origin_type'];
+    const allowed = ['title', 'status', 'origin_type'];
     const updates = ['updated_at = datetime(\'now\')'];
     const values = [];
     for (const [key, val] of Object.entries(fields)) {

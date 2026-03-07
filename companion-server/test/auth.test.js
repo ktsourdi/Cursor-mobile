@@ -80,6 +80,21 @@ describe('Authentication and Pairing', () => {
       assert.equal(confirmResult.error, 'Device not found');
     });
 
+    it('should reject expired pairing token', () => {
+      const pairResult = startPairing(db, { device_name: 'iPhone', platform: 'iphone' });
+
+      // Manually expire the pairing token
+      db.updateDevice(pairResult.device_id, {
+        pairing_token_expires_at: new Date(Date.now() - 1000).toISOString()
+      });
+
+      const confirmResult = confirmPairing(db, {
+        device_id: pairResult.device_id,
+        pairing_token: pairResult.pairing_token
+      });
+      assert.equal(confirmResult.error, 'Pairing token has expired');
+    });
+
     it('should reject revoked device', () => {
       const pairResult = startPairing(db, { device_name: 'iPhone', platform: 'iphone' });
       db.revokeDevice(pairResult.device_id);

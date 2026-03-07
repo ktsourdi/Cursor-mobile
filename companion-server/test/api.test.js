@@ -84,6 +84,15 @@ describe('API Routes', () => {
       assert.equal(res.body.status, 'ok');
       assert.equal(res.body.version, '1.0.0');
     });
+
+    it('GET /api/status should reflect paired device count', async () => {
+      // Pair a device
+      await pairDevice(server);
+
+      const res = await request(server, 'GET', '/api/status');
+      assert.equal(res.status, 200);
+      assert.equal(res.body.connected_devices, 1);
+    });
   });
 
   describe('Pairing', () => {
@@ -224,6 +233,27 @@ describe('API Routes', () => {
       });
       assert.equal(res.status, 400);
     });
+
+    it('GET /api/threads/:id should return a single thread', async () => {
+      const createRes = await request(server, 'POST', '/api/threads', {
+        project_id: projectId, title: 'Single thread test'
+      }, { 'Authorization': `Bearer ${token}` });
+      assert.equal(createRes.status, 201);
+
+      const res = await request(server, 'GET', `/api/threads/${createRes.body.id}`, null, {
+        'Authorization': `Bearer ${token}`
+      });
+      assert.equal(res.status, 200);
+      assert.equal(res.body.title, 'Single thread test');
+      assert.equal(res.body.id, createRes.body.id);
+    });
+
+    it('GET /api/threads/:id should return 404 for non-existent thread', async () => {
+      const res = await request(server, 'GET', '/api/threads/nonexistent-id', null, {
+        'Authorization': `Bearer ${token}`
+      });
+      assert.equal(res.status, 404);
+    });
   });
 
   describe('Messages (authenticated)', () => {
@@ -284,6 +314,29 @@ describe('API Routes', () => {
         thread_id: threadId
       }, { 'Authorization': `Bearer ${token}` });
       assert.equal(res.status, 400);
+    });
+
+    it('POST /api/messages should reject non-existent thread', async () => {
+      const res = await request(server, 'POST', '/api/messages', {
+        thread_id: 'nonexistent-thread', role: 'user', body: 'Hello'
+      }, { 'Authorization': `Bearer ${token}` });
+      assert.equal(res.status, 404);
+    });
+
+    it('GET /api/messages should support limit parameter', async () => {
+      // Create 3 messages
+      for (let i = 1; i <= 3; i++) {
+        await request(server, 'POST', '/api/messages', {
+          thread_id: threadId, role: 'user', body: `Message ${i}`
+        }, { 'Authorization': `Bearer ${token}` });
+      }
+
+      // Fetch with limit=2
+      const res = await request(server, 'GET', `/api/messages?thread_id=${threadId}&limit=2`, null, {
+        'Authorization': `Bearer ${token}`
+      });
+      assert.equal(res.status, 200);
+      assert.equal(res.body.length, 2);
     });
   });
 });

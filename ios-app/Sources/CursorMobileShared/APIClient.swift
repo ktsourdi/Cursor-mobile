@@ -56,6 +56,20 @@ public final class CompanionAPIClient: Sendable {
         return try await post("/api/projects/scan", body: Body(scan_path: path))
     }
 
+    public func createProject(name: String, localPath: String, gitRemoteUrl: String? = nil, currentBranch: String? = nil, lastCommitHash: String? = nil) async throws -> Project {
+        struct Body: Codable { let name: String; let local_path: String; let git_remote_url: String?; let current_branch: String?; let last_commit_hash: String? }
+        return try await post("/api/projects", body: Body(name: name, local_path: localPath, git_remote_url: gitRemoteUrl, current_branch: currentBranch, last_commit_hash: lastCommitHash))
+    }
+
+    public func updateProject(id: String, name: String? = nil, localPath: String? = nil, gitRemoteUrl: String? = nil, currentBranch: String? = nil) async throws -> Project {
+        var fields: [String: String] = [:]
+        if let name = name { fields["name"] = name }
+        if let localPath = localPath { fields["local_path"] = localPath }
+        if let gitRemoteUrl = gitRemoteUrl { fields["git_remote_url"] = gitRemoteUrl }
+        if let currentBranch = currentBranch { fields["current_branch"] = currentBranch }
+        return try await put("/api/projects/\(id)", body: fields)
+    }
+
     public func deleteProject(id: String) async throws {
         let _: DeleteResponse = try await delete("/api/projects/\(id)")
     }
@@ -64,6 +78,10 @@ public final class CompanionAPIClient: Sendable {
 
     public func getThreads(projectId: String) async throws -> [ConversationThread] {
         return try await get("/api/threads?project_id=\(projectId)")
+    }
+
+    public func getThread(id: String) async throws -> ConversationThread {
+        return try await get("/api/threads/\(id)")
     }
 
     public func createThread(projectId: String, title: String) async throws -> ConversationThread {

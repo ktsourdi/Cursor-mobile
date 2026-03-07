@@ -19,10 +19,11 @@ final class SessionStore: ObservableObject {
            let token = UserDefaults.standard.string(forKey: tokenKey),
            let url = URL(string: "http://\(address)") {
             serverAddress = address
-            apiClient = CompanionAPIClient(baseURL: url)
-            isPaired = true
+            let client = CompanionAPIClient(baseURL: url)
+            apiClient = client
             Task {
-                await apiClient?.setSessionToken(token)
+                await client.setSessionToken(token)
+                self.isPaired = true
             }
         }
     }
@@ -31,11 +32,12 @@ final class SessionStore: ObservableObject {
         serverAddress = address
         UserDefaults.standard.set(address, forKey: addressKey)
         UserDefaults.standard.set(token, forKey: tokenKey)
-        apiClient = CompanionAPIClient(baseURL: URL(string: "http://\(address)")!)
+        let client = CompanionAPIClient(baseURL: URL(string: "http://\(address)")!)
+        apiClient = client
         Task {
-            await apiClient?.setSessionToken(token)
+            await client.setSessionToken(token)
+            self.isPaired = true
         }
-        isPaired = true
     }
 
     func logout() {
