@@ -52,15 +52,23 @@ Cursor-mobile/
 │   │   ├── project-discovery/git.js  # Git metadata extraction
 │   │   └── ws/websocket.js    # WebSocket real-time sync
 │   ├── test/                  # Test suite (79 tests)
-│   ├── deploy/                # Deployment configs (macOS launchd)
+│   ├── deploy/                # Deployment configs & scripts
+│   │   ├── setup-mac.sh       # One-command macOS install script
+│   │   ├── uninstall.sh       # Clean uninstall script
+│   │   └── com.cursor-mobile.companion.plist  # macOS launchd config
 │   ├── Dockerfile             # Docker container build
 │   └── package.json
 ├── ios-app/                   # iPhone SwiftUI app
 │   ├── Package.swift
 │   ├── Sources/
 │   │   ├── CursorMobileShared/   # Shared models & API client
+│   │   │   ├── Models.swift      # Codable data models
+│   │   │   └── APIClient.swift   # HTTP + WebSocket client
 │   │   └── CursorMobileApp/     # SwiftUI views
+│   │       └── App.swift         # Full UI with business logic
 │   └── Tests/
+│       └── CursorMobileSharedTests/
+│           └── ModelsTests.swift
 └── README.md
 ```
 
@@ -112,16 +120,27 @@ curl http://localhost:24842/api/status
 
 ### 3. Build & Run the iPhone App
 
+**Requirements:** macOS with Xcode 15+ and iOS 16+ device or simulator.
+
 ```bash
-# Open in Xcode
 cd ios-app
-open Package.swift
+open Package.swift    # Opens in Xcode
 ```
 
-1. Select your target device or simulator
-2. Build and run (`Cmd+R`)
-3. Enter the server address (e.g., `192.168.1.100:24842`)
-4. Complete the pairing flow
+**In Xcode:**
+1. Wait for Swift Package Manager to resolve dependencies
+2. Select the `CursorMobileApp` scheme from the scheme selector
+3. Choose your target: iPhone simulator or a connected device
+4. For physical devices: Go to **Signing & Capabilities** → select your team
+5. Build and run (`Cmd+R`)
+
+**On the iPhone app:**
+1. Enter your Mac's local IP and port (e.g., `192.168.1.100:24842`)
+   - Find your Mac's IP: `ipconfig getifaddr en0` in Terminal
+2. Tap **Connect** — the app auto-pairs with the companion server
+3. Browse your projects, threads, and send messages
+
+> **Tip:** Both the Mac and iPhone must be on the same WiFi network.
 
 ---
 
@@ -134,11 +153,20 @@ The server is configured via environment variables:
 | `COMPANION_PORT` | `24842` | HTTP/WebSocket port |
 | `COMPANION_HOST` | `0.0.0.0` | Bind address |
 | `COMPANION_DB_PATH` | `./companion.db` | SQLite database file path |
+| `COMPANION_LOG_REQUESTS` | `false` | Log all HTTP requests (set to `true` for debugging) |
 
 Example:
 
 ```bash
 COMPANION_PORT=8080 COMPANION_DB_PATH=/var/data/companion.db npm start
+```
+
+### Development Mode
+
+Auto-restarts on file changes (requires Node.js 18.11+):
+
+```bash
+npm run dev
 ```
 
 ---
@@ -155,9 +183,30 @@ npm install --production
 npm start
 ```
 
-### Option B: macOS Background Service (launchd)
+### Option B: One-Command macOS Setup (recommended)
 
-Runs automatically on login and survives reboots:
+Installs as a background service that starts automatically on login:
+
+```bash
+cd companion-server
+./deploy/setup-mac.sh
+```
+
+This script:
+- Copies server files to `~/.cursor-mobile-companion/`
+- Installs npm dependencies
+- Creates a macOS Launch Agent (auto-start on login)
+- Starts the server immediately
+- Shows your Mac's IP for iPhone pairing
+
+To uninstall:
+```bash
+./deploy/uninstall.sh
+```
+
+### Option C: Manual macOS Background Service (launchd)
+
+If you prefer manual control:
 
 ```bash
 # 1. Copy server files to a permanent location
@@ -186,7 +235,7 @@ tail -f /tmp/cursor-mobile-companion.log
 launchctl unload ~/Library/LaunchAgents/com.cursor-mobile.companion.plist
 ```
 
-### Option C: Docker
+### Option D: Docker
 
 ```bash
 cd companion-server
@@ -427,3 +476,83 @@ npm test
 - Voice input
 - Push notifications (APNs)
 - Multi-user collaboration
+
+---
+
+## Troubleshooting
+
+### Server won't start
+
+```bash
+# Check if port 24842 is already in use
+lsof -i :24842
+
+# Try a different port
+COMPANION_PORT=9999 npm start
+
+# Check Node.js version (need 18+)
+node --version
+```
+
+### iPhone can't connect to Mac
+
+1. **Same network?** Both devices must be on the same WiFi network
+2. **Find your Mac's IP:**
+   ```bash
+   ipconfig getifaddr en0   # WiFi
+   ipconfig getifaddr en1   # Ethernet
+   ```
+3. **Firewall?** macOS may block incoming connections:
+   - System Preferences → Security & Privacy → Firewall → allow Node.js
+4. **Test from Mac first:**
+   ```bash
+   curl http://localhost:24842/health
+   ```
+
+### Pairing fails
+
+- Pairing tokens expire after **5 minutes** — start pairing again if expired
+- Make sure the server address in the app includes the port: `192.168.1.100:24842`
+- Check server logs for errors:
+  ```bash
+  COMPANION_LOG_REQUESTS=true npm start
+  ```
+
+### Database issues
+
+```bash
+# Reset the database (deletes all data)
+rm companion.db
+npm start   # Creates a fresh database
+
+# Check database location
+echo $COMPANION_DB_PATH
+```
+
+### Docker issues
+
+```bash
+# Rebuild from scratch
+docker build --no-cache -t cursor-mobile-companion .
+
+# Check container logs
+docker logs cursor-companion
+
+# Shell into container
+docker exec -it cursor-companion sh
+```
+
+### macOS Launch Agent issues
+
+```bash
+# Check if the service is loaded
+launchctl list | grep cursor
+
+# View logs
+tail -50 ~/Library/Logs/cursor-mobile-companion.log 2>/dev/null || \
+tail -50 /tmp/cursor-mobile-companion.log
+
+# Reload the service
+launchctl unload ~/Library/LaunchAgents/com.cursor-mobile.companion.plist
+launchctl load ~/Library/LaunchAgents/com.cursor-mobile.companion.plist
+```

@@ -23,6 +23,10 @@ public final class CompanionAPIClient: Sendable {
         return await tokenStorage.get()
     }
 
+    public func clearSessionToken() async {
+        await tokenStorage.clear()
+    }
+
     // MARK: - Pairing
 
     public func startPairing(deviceName: String) async throws -> PairStartResponse {
@@ -47,6 +51,15 @@ public final class CompanionAPIClient: Sendable {
         return try await get("/api/projects/\(id)")
     }
 
+    public func scanProjects(path: String) async throws -> ScanResult {
+        struct Body: Codable { let scan_path: String }
+        return try await post("/api/projects/scan", body: Body(scan_path: path))
+    }
+
+    public func deleteProject(id: String) async throws {
+        let _: DeleteResponse = try await delete("/api/projects/\(id)")
+    }
+
     // MARK: - Threads
 
     public func getThreads(projectId: String) async throws -> [ConversationThread] {
@@ -56,6 +69,17 @@ public final class CompanionAPIClient: Sendable {
     public func createThread(projectId: String, title: String) async throws -> ConversationThread {
         struct Body: Codable { let project_id: String; let title: String }
         return try await post("/api/threads", body: Body(project_id: projectId, title: title))
+    }
+
+    public func updateThread(id: String, title: String? = nil, status: String? = nil) async throws -> ConversationThread {
+        var fields: [String: String] = [:]
+        if let title = title { fields["title"] = title }
+        if let status = status { fields["status"] = status }
+        return try await put("/api/threads/\(id)", body: fields)
+    }
+
+    public func deleteThread(id: String) async throws {
+        let _: DeleteResponse = try await delete("/api/threads/\(id)")
     }
 
     // MARK: - Messages
@@ -74,16 +98,44 @@ public final class CompanionAPIClient: Sendable {
         return try await post("/api/ack", body: Body(message_id: messageId))
     }
 
+    // MARK: - Devices
+
+    public func getDevices() async throws -> [Device] {
+        return try await get("/api/devices")
+    }
+
+    public func revokeDevice(id: String) async throws {
+        let _: DeleteResponse = try await delete("/api/devices/\(id)")
+    }
+
     // MARK: - Status
 
     public func getStatus() async throws -> ServerStatus {
         return try await get("/api/status", authenticated: false)
     }
 
+    // MARK: - WebSocket
+
+    /// Creates a URLSessionWebSocketTask for real-time sync.
+    public func connectWebSocket() async -> URLSessionWebSocketTask? {
+        guard let token = await getSessionToken() else { return nil }
+        var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false)!
+        components.path = "/ws"
+        components.queryItems = [URLQueryItem(name: "token", value: token)]
+        // Switch scheme to ws/wss
+        if components.scheme == "http" { components.scheme = "ws" }
+        else if components.scheme == "https" { components.scheme = "wss" }
+        guard let wsURL = components.url else { return nil }
+        let task = session.webSocketTask(with: wsURL)
+        task.resume()
+        return task
+    }
+
     // MARK: - Private Helpers
 
     private func get<T: Decodable>(_ path: String, authenticated: Bool = true) async throws -> T {
-        var request = URLRequest(url: baseURL.appendingPathComponent(path))
+        let url = buildURL(path)
+        var request = URLRequest(url: url)
         request.httpMethod = "GET"
 
         if authenticated, let token = await getSessionToken() {
@@ -96,7 +148,8 @@ public final class CompanionAPIClient: Sendable {
     }
 
     private func post<T: Decodable, B: Encodable>(_ path: String, body: B, authenticated: Bool = true) async throws -> T {
-        var request = URLRequest(url: baseURL.appendingPathComponent(path))
+        let url = buildURL(path)
+        var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONEncoder().encode(body)
@@ -108,6 +161,48 @@ public final class CompanionAPIClient: Sendable {
         let (data, response) = try await session.data(for: request)
         try validateResponse(response)
         return try JSONDecoder().decode(T.self, from: data)
+    }
+
+    private func put<T: Decodable, B: Encodable>(_ path: String, body: B) async throws -> T {
+        let url = buildURL(path)
+        var request = URLRequest(url: url)
+        request.httpMethod = "PUT"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(body)
+
+        if let token = await getSessionToken() {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+
+        let (data, response) = try await session.data(for: request)
+        try validateResponse(response)
+        return try JSONDecoder().decode(T.self, from: data)
+    }
+
+    private func delete<T: Decodable>(_ path: String) async throws -> T {
+        let url = buildURL(path)
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+
+        if let token = await getSessionToken() {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+
+        let (data, response) = try await session.data(for: request)
+        try validateResponse(response)
+        return try JSONDecoder().decode(T.self, from: data)
+    }
+
+    private func buildURL(_ path: String) -> URL {
+        // Handle paths that already contain query parameters
+        if path.contains("?") {
+            var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false)!
+            let parts = path.split(separator: "?", maxSplits: 1)
+            components.path = String(parts[0])
+            components.query = parts.count > 1 ? String(parts[1]) : nil
+            return components.url!
+        }
+        return baseURL.appendingPathComponent(path)
     }
 
     private func validateResponse(_ response: URLResponse) throws {
@@ -131,6 +226,10 @@ private actor TokenStorage {
 
     func get() -> String? {
         return token
+    }
+
+    func clear() {
+        self.token = nil
     }
 }
 

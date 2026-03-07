@@ -269,3 +269,38 @@ public struct ServerStatus: Codable, Sendable {
         case projectCount = "project_count"
     }
 }
+
+// MARK: - Scan Result
+
+/// Response from POST /api/projects/scan.
+public struct ScanResult: Codable, Sendable {
+    public let scannedPath: String
+    public let discovered: Int
+    public let projects: [ScannedProject]
+
+    enum CodingKeys: String, CodingKey {
+        case scannedPath = "scanned_path"
+        case discovered
+        case projects
+    }
+}
+
+/// A project discovered during a scan, with an action field.
+public struct ScannedProject: Codable, Sendable {
+    public let id: String
+    public let name: String
+    public let localPath: String
+    public let action: String
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, action
+        case localPath = "local_path"
+    }
+}
+
+// MARK: - Delete Response
+
+/// Generic delete/revoke response from the API.
+public struct DeleteResponse: Codable, Sendable {
+    public let status: String
+}
