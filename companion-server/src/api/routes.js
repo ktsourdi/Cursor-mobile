@@ -3,7 +3,7 @@
 const express = require('express');
 const { v4: uuidv4 } = require('uuid');
 const { startPairing, confirmPairing, authMiddleware } = require('../auth/pairing');
-const { getGitMetadata } = require('../project-discovery/git');
+const { getGitMetadata, scanForProjects } = require('../project-discovery/git');
 
 function createRouter(db, { broadcast } = {}) {
   const router = express.Router();
@@ -50,6 +50,28 @@ function createRouter(db, { broadcast } = {}) {
 
   // === Authenticated endpoints ===
 
+  // Devices
+  router.get('/devices', auth, (req, res) => {
+    const devices = db.listDevices().map(d => ({
+      id: d.id,
+      device_name: d.device_name,
+      platform: d.platform,
+      trusted_at: d.trusted_at,
+      revoked_at: d.revoked_at
+    }));
+    res.json(devices);
+  });
+
+  router.delete('/devices/:id', auth, (req, res) => {
+    const device = db.getDevice(req.params.id);
+    if (!device) return res.status(404).json({ error: 'Device not found' });
+    db.revokeDevice(req.params.id);
+    if (broadcast) {
+      broadcast({ type: 'connection.changed', data: { status: 'device_revoked', device_id: req.params.id } });
+    }
+    res.json({ status: 'revoked', device_id: req.params.id });
+  });
+
   // Projects
   router.get('/projects', auth, (req, res) => {
     const projects = db.listProjects();
@@ -76,12 +98,71 @@ function createRouter(db, { broadcast } = {}) {
     res.status(201).json(project);
   });
 
+  // Scan a directory path and auto-register discovered git projects
+  router.post('/projects/scan', auth, (req, res) => {
+    const { scan_path } = req.body;
+    if (!scan_path) {
+      return res.status(400).json({ error: 'scan_path is required' });
+    }
+    const discovered = scanForProjects(scan_path);
+    const registered = [];
+    for (const proj of discovered) {
+      // Skip if already registered by local_path
+      const existing = db.listProjects().find(p => p.local_path === proj.local_path);
+      if (existing) {
+        // Update git metadata on existing project
+        db.updateProject(existing.id, {
+          current_branch: proj.current_branch,
+          last_commit_hash: proj.last_commit_hash,
+          git_remote_url: proj.git_remote_url,
+          last_active_at: new Date().toISOString()
+        });
+        registered.push({ ...db.getProject(existing.id), action: 'updated' });
+      } else {
+        const id = uuidv4();
+        const created = db.createProject({
+          id,
+          name: proj.name,
+          local_path: proj.local_path,
+          git_remote_url: proj.git_remote_url,
+          current_branch: proj.current_branch,
+          last_commit_hash: proj.last_commit_hash
+        });
+        registered.push({ ...created, action: 'created' });
+        if (broadcast) {
+          broadcast({ type: 'project.updated', data: created });
+        }
+      }
+    }
+    res.json({ scanned_path: scan_path, discovered: discovered.length, projects: registered });
+  });
+
   router.get('/projects/:id', auth, (req, res) => {
     const project = db.getProject(req.params.id);
     if (!project) return res.status(404).json({ error: 'Project not found' });
 
     const gitMeta = getGitMetadata(project.local_path);
     res.json({ ...project, git: gitMeta });
+  });
+
+  router.put('/projects/:id', auth, (req, res) => {
+    const project = db.getProject(req.params.id);
+    if (!project) return res.status(404).json({ error: 'Project not found' });
+    const updated = db.updateProject(req.params.id, req.body);
+    if (broadcast) {
+      broadcast({ type: 'project.updated', data: updated });
+    }
+    res.json(updated);
+  });
+
+  router.delete('/projects/:id', auth, (req, res) => {
+    const project = db.getProject(req.params.id);
+    if (!project) return res.status(404).json({ error: 'Project not found' });
+    db.deleteProject(req.params.id);
+    if (broadcast) {
+      broadcast({ type: 'project.updated', data: { id: req.params.id, deleted: true } });
+    }
+    res.json({ status: 'deleted', project_id: req.params.id });
   });
 
   // Threads
@@ -117,6 +198,26 @@ function createRouter(db, { broadcast } = {}) {
     const thread = db.getThread(req.params.id);
     if (!thread) return res.status(404).json({ error: 'Thread not found' });
     res.json(thread);
+  });
+
+  router.put('/threads/:id', auth, (req, res) => {
+    const thread = db.getThread(req.params.id);
+    if (!thread) return res.status(404).json({ error: 'Thread not found' });
+    const updated = db.updateThread(req.params.id, req.body);
+    if (broadcast) {
+      broadcast({ type: 'thread.updated', data: updated });
+    }
+    res.json(updated);
+  });
+
+  router.delete('/threads/:id', auth, (req, res) => {
+    const thread = db.getThread(req.params.id);
+    if (!thread) return res.status(404).json({ error: 'Thread not found' });
+    db.deleteThread(req.params.id);
+    if (broadcast) {
+      broadcast({ type: 'thread.updated', data: { id: req.params.id, deleted: true } });
+    }
+    res.json({ status: 'deleted', thread_id: req.params.id });
   });
 
   // Messages

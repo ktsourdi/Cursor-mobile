@@ -10,8 +10,9 @@ const { createWSServer } = require('./ws/websocket');
 const DEFAULT_PORT = 24842;
 
 function createApp(options = {}) {
-  const dbPath = options.dbPath || path.join(process.cwd(), 'companion.db');
-  const port = options.port != null ? options.port : DEFAULT_PORT;
+  const dbPath = options.dbPath || process.env.COMPANION_DB_PATH || path.join(process.cwd(), 'companion.db');
+  const port = options.port != null ? options.port : (process.env.COMPANION_PORT ? parseInt(process.env.COMPANION_PORT, 10) : DEFAULT_PORT);
+  const host = options.host || process.env.COMPANION_HOST || '0.0.0.0';
 
   // Initialize database
   const db = new CompanionDB(dbPath);
@@ -38,8 +39,12 @@ function createApp(options = {}) {
 
   function start() {
     return new Promise((resolve) => {
-      server.listen(port, () => {
-        console.log(`Cursor Mobile Companion server running on port ${port}`);
+      server.listen(port, host, () => {
+        const addr = server.address();
+        console.log(`Cursor Mobile Companion server running on ${addr.address}:${addr.port}`);
+        console.log(`Database: ${dbPath}`);
+        console.log(`WebSocket: ws://${addr.address}:${addr.port}/ws`);
+        console.log(`Health check: http://${addr.address}:${addr.port}/health`);
         resolve({ server, db, wss, app });
       });
     });
@@ -62,7 +67,17 @@ function createApp(options = {}) {
 if (require.main === module) {
   const app = createApp();
   app.start().then(() => {
-    console.log(`Server started on port ${app.port}`);
+    console.log('Ready to accept connections.');
+  });
+
+  // Graceful shutdown
+  process.on('SIGINT', () => {
+    console.log('\nShutting down...');
+    app.stop().then(() => process.exit(0));
+  });
+  process.on('SIGTERM', () => {
+    console.log('\nShutting down...');
+    app.stop().then(() => process.exit(0));
   });
 }
 
