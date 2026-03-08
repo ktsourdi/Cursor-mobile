@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  macOS Launch Agent for Cursor Mobile Companion Server
+  
+  Install:
+    cp com.cursor-mobile.companion.plist ~/Library/LaunchAgents/
+    launchctl load ~/Library/LaunchAgents/com.cursor-mobile.companion.plist
+  
+  Uninstall:
+    launchctl unload ~/Library/LaunchAgents/com.cursor-mobile.companion.plist
+    rm ~/Library/LaunchAgents/com.cursor-mobile.companion.plist
+  
+  Logs:
+    tail -f /tmp/cursor-mobile-companion.log
+    tail -f /tmp/cursor-mobile-companion.err
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.cursor-mobile.companion</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/local/bin/node</string>
+    <string>src/index.js</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <!-- UPDATE THIS to your actual install path, e.g. /path/to/cursor-mobile-companion -->
+  <string>/usr/local/lib/cursor-mobile-companion</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>COMPANION_PORT</key>
+    <string>24842</string>
+    <key>COMPANION_DB_PATH</key>
+    <string>/usr/local/var/cursor-mobile/companion.db</string>
+  </dict>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>KeepAlive</key>
+  <true/>
+
+  <key>StandardOutPath</key>
+  <string>/tmp/cursor-mobile-companion.log</string>
+
+  <key>StandardErrorPath</key>
+  <string>/tmp/cursor-mobile-companion.err</string>
+
+  <key>ThrottleInterval</key>
+  <integer>10</integer>
+</dict>
+</plist>
