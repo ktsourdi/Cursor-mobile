@@ -1,16 +1,17 @@
 'use strict';
 
-const { execSync } = require('child_process');
+const { execFileSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 
 /**
  * Runs a git command in the specified directory and returns trimmed output.
  * Returns null if the command fails.
+ * Uses execFileSync with array args to prevent command injection.
  */
 function gitCommand(repoPath, args) {
   try {
-    return execSync(`git ${args}`, {
+    return execFileSync('git', args, {
       cwd: repoPath,
       encoding: 'utf8',
       timeout: 10000,
@@ -25,7 +26,7 @@ function gitCommand(repoPath, args) {
  * Checks if a directory is a git repository.
  */
 function isGitRepo(dirPath) {
-  return gitCommand(dirPath, 'rev-parse --is-inside-work-tree') === 'true';
+  return gitCommand(dirPath, ['rev-parse', '--is-inside-work-tree']) === 'true';
 }
 
 /**
@@ -37,25 +38,25 @@ function getGitMetadata(repoPath) {
   }
 
   const repoName = path.basename(repoPath);
-  const currentBranch = gitCommand(repoPath, 'rev-parse --abbrev-ref HEAD');
-  const lastCommitHash = gitCommand(repoPath, 'rev-parse --short HEAD');
-  const lastCommitFullHash = gitCommand(repoPath, 'rev-parse HEAD');
-  const remoteUrl = gitCommand(repoPath, 'config --get remote.origin.url');
+  const currentBranch = gitCommand(repoPath, ['rev-parse', '--abbrev-ref', 'HEAD']);
+  const lastCommitHash = gitCommand(repoPath, ['rev-parse', '--short', 'HEAD']);
+  const lastCommitFullHash = gitCommand(repoPath, ['rev-parse', 'HEAD']);
+  const remoteUrl = gitCommand(repoPath, ['config', '--get', 'remote.origin.url']);
 
   // Get changed files count
-  const statusOutput = gitCommand(repoPath, 'status --porcelain');
+  const statusOutput = gitCommand(repoPath, ['status', '--porcelain']);
   const changedFiles = statusOutput ? statusOutput.split('\n').filter(line => line.trim()).length : 0;
 
   // Get recently modified tracked files (last 10)
-  const recentFilesRaw = gitCommand(repoPath, 'diff --name-only HEAD~1 HEAD 2>/dev/null') ||
-    gitCommand(repoPath, 'diff --name-only --cached') || '';
+  const recentFilesRaw = gitCommand(repoPath, ['diff', '--name-only', 'HEAD~1', 'HEAD']) ||
+    gitCommand(repoPath, ['diff', '--name-only', '--cached']) || '';
   const recentFiles = recentFilesRaw.split('\n').filter(f => f.trim()).slice(0, 10);
 
   // Get last commit message
-  const lastCommitMessage = gitCommand(repoPath, 'log -1 --pretty=format:%s');
+  const lastCommitMessage = gitCommand(repoPath, ['log', '-1', '--pretty=format:%s']);
 
   // Get last commit timestamp
-  const lastCommitTime = gitCommand(repoPath, 'log -1 --pretty=format:%aI');
+  const lastCommitTime = gitCommand(repoPath, ['log', '-1', '--pretty=format:%aI']);
 
   return {
     repo_name: repoName,

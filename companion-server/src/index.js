@@ -29,7 +29,9 @@ function createApp(options = {}) {
     const start = Date.now();
     res.on('finish', () => {
       const duration = Date.now() - start;
-      const log = `${req.method} ${req.originalUrl} ${res.statusCode} ${duration}ms`;
+      // Strip query parameters from logs to avoid leaking tokens
+      const safePath = req.originalUrl.split('?')[0];
+      const log = `${req.method} ${safePath} ${res.statusCode} ${duration}ms`;
       if (res.statusCode >= 400) {
         console.error(log);
       } else if (process.env.COMPANION_LOG_REQUESTS === 'true') {

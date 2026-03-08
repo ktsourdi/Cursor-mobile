@@ -445,13 +445,29 @@ npm test
 
 ## Security
 
+### Current protections
 - Device pairing uses one-time, short-lived tokens (5 min expiry)
 - Session tokens with 7-day expiry and rotation support
 - All authenticated endpoints require Bearer token
 - WebSocket connections require token authentication
 - Device revocation supported (immediate invalidation)
 - Graceful shutdown on SIGINT/SIGTERM
-- No sensitive data logged by default
+- No sensitive data logged by default (query parameters stripped from request logs)
+- SQL injection prevented via parameterized queries throughout
+- Git command execution uses `execFileSync` with array arguments (no shell interpolation)
+
+### Known limitations (MVP scope)
+This project is designed for **local network use between your own devices**. The following are known limitations that are acceptable for personal/development use but should be addressed before any production deployment:
+
+| Area | Current State | Risk | Recommendation |
+|------|--------------|------|----------------|
+| Transport | HTTP / WS (no TLS) | Session tokens sent in plaintext on local network | Use on trusted private networks only; add TLS for untrusted networks |
+| Token in URL | WebSocket auth via `?token=` query parameter | Tokens may appear in access logs | Acceptable for local use; production should use Authorization header |
+| iOS token storage | `UserDefaults` (plaintext on disk) | Readable on jailbroken devices | Acceptable for MVP; production should use iOS Keychain |
+| Network binding | `0.0.0.0` (all interfaces) | Server reachable from any network the host joins | Use firewall rules; set `COMPANION_HOST=127.0.0.1` for localhost-only |
+
+### Safe for public repositories
+✅ This codebase contains **no secrets, credentials, API keys, or private data**. All tokens are generated at runtime and stored locally. Test fixtures use synthetic data only.
 
 ## MVP Scope
 
@@ -466,7 +482,7 @@ npm test
 - ✅ Local-first SQLite storage
 - ✅ Docker deployment
 - ✅ macOS launchd service
-- ✅ 79 passing tests
+- ✅ 85 passing tests
 
 **Excluded (future phases):**
 - Direct Cursor internal state parsing
